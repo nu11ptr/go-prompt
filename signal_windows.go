@@ -9,7 +9,7 @@ import (
 	"syscall"
 )
 
-func (p *Prompt) handleSignals(exitCh chan int, winSizeCh chan *WinSize, stop chan struct{}) {
+func (p *Prompt) handleSignals(exitCh chan int, winSizeCh chan *WinSize) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(
 		sigCh,
@@ -19,25 +19,25 @@ func (p *Prompt) handleSignals(exitCh chan int, winSizeCh chan *WinSize, stop ch
 	)
 
 	for {
-		select {
-		case <-stop:
+		s, ok := <-sigCh
+		if !ok {
 			log.Println("[INFO] stop handleSignals")
+			signal.Stop(sigCh)
 			return
-		case s := <-sigCh:
-			switch s {
+		}
 
-			case syscall.SIGINT: // kill -SIGINT XXXX or Ctrl+c
-				log.Println("[SIGNAL] Catch SIGINT")
-				exitCh <- 0
+		switch s {
+		case syscall.SIGINT: // kill -SIGINT XXXX or Ctrl+c
+			log.Println("[SIGNAL] Catch SIGINT")
+			exitCh <- ExitSuccess
 
-			case syscall.SIGTERM: // kill -SIGTERM XXXX
-				log.Println("[SIGNAL] Catch SIGTERM")
-				exitCh <- 1
+		case syscall.SIGTERM: // kill -SIGTERM XXXX
+			log.Println("[SIGNAL] Catch SIGTERM")
+			exitCh <- ExitKilled
 
-			case syscall.SIGQUIT: // kill -SIGQUIT XXXX
-				log.Println("[SIGNAL] Catch SIGQUIT")
-				exitCh <- 0
-			}
+		case syscall.SIGQUIT: // kill -SIGQUIT XXXX
+			log.Println("[SIGNAL] Catch SIGQUIT")
+			exitCh <- ExitSuccess
 		}
 	}
 }

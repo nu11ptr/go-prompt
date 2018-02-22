@@ -8,6 +8,9 @@ import (
 )
 
 const (
+	ExitSuccess = 0
+	ExitKilled  = 1
+
 	envDebugLogPath = "GO_PROMPT_LOG_PATH"
 )
 
@@ -57,8 +60,7 @@ func (p *Prompt) Run() {
 
 	exitCh := make(chan int)
 	winSizeCh := make(chan *WinSize)
-	stopHandleSignalCh := make(chan struct{})
-	go p.handleSignals(exitCh, winSizeCh, stopHandleSignalCh)
+	go p.handleSignals(exitCh, winSizeCh)
 
 	for {
 		select {
@@ -69,7 +71,7 @@ func (p *Prompt) Run() {
 			} else if e != nil {
 				// Stop goroutine to run readBuffer function
 				stopReadBufCh <- struct{}{}
-				stopHandleSignalCh <- struct{}{}
+				close(exitCh)
 
 				// Unset raw mode
 				// Reset to Blocking mode because returned EAGAIN when still set non-blocking mode.
@@ -82,7 +84,8 @@ func (p *Prompt) Run() {
 				// Set raw mode
 				p.in.Setup()
 				go p.readBuffer(bufCh, stopReadBufCh)
-				go p.handleSignals(exitCh, winSizeCh, stopHandleSignalCh)
+				exitCh = make(chan int)
+				go p.handleSignals(exitCh, winSizeCh)
 			} else {
 				p.completion.Update(*p.buf.Document())
 				p.renderer.Render(p.buf, p.completion)
